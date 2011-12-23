@@ -12,11 +12,15 @@ import java.util.Vector;
 
 import Jama.Matrix;
 
+/**
+ * @author viswanathgs
+ */
+
 public class FrequencyMapper {
 	Map<Integer, Vector<Integer> > frequencyTable;
 	
-	// Maximum number of system calls in Linux kernel is hard-coded
-	public final int maxSystemCalls = 250;
+	// Maximum number of system calls in Linux kernel. Hard-coded.
+	public static final int MAX_SYSTEM_CALLS = 400;
 	
 	public FrequencyMapper(String processLog) throws IOException {
 		BufferedReader processLogFin = new BufferedReader(new FileReader(processLog));
@@ -37,14 +41,14 @@ public class FrequencyMapper {
 			int systemCallID = Integer.parseInt(lineTokens.nextToken());
 			
 			// System call ID should be in the range [1..maxSystemCalls]
-			if (systemCallID < 1 || systemCallID > maxSystemCalls) {
+			if (systemCallID < 1 || systemCallID > MAX_SYSTEM_CALLS) {
 				throw new IOException("Invalid system call ID");
 			}
 			
 			if (!frequencyTable.containsKey(pID)) {
-				Vector<Integer> frequencyList = new Vector<Integer>(maxSystemCalls);
-				for (int i = 0; i < maxSystemCalls; i++) {
-					frequencyList.set(i, 0);
+				Vector<Integer> frequencyList = new Vector<Integer>();
+				for (int i = 0; i < MAX_SYSTEM_CALLS; i++) {
+					frequencyList.add(0);
 				}
 				
 				frequencyTable.put(pID, frequencyList);
@@ -56,7 +60,7 @@ public class FrequencyMapper {
 	}
 	
 	public Matrix getX() {
-		int n = maxSystemCalls;
+		int n = MAX_SYSTEM_CALLS;
 		int m = frequencyTable.size();
 		Matrix X = new Matrix(n, m);
 		
@@ -68,10 +72,10 @@ public class FrequencyMapper {
 			Vector<Integer> systemCallFrequency = pairs.getValue();
 			
 			double totalFrequency = 0.0;
-			for (int i = 0; i < maxSystemCalls; i++) {
+			for (int i = 0; i < n; i++) {
 				totalFrequency += systemCallFrequency.get(i);
 			}
-			for (int i = 0; i < maxSystemCalls; i++) {
+			for (int i = 0; i < n; i++) {
 				X.set(i, j, (double) systemCallFrequency.get(i) / totalFrequency); 
 			}
 			

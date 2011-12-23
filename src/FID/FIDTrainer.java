@@ -2,10 +2,8 @@ package FID;
 
 import Jama.Matrix;
 
-/*
- * TODO
- * matrix class with threads (matrix mult optimize, iteration optimize)
- * 
+/**
+ * @author viswanathgs
  */
 
 public class FIDTrainer {
@@ -18,6 +16,8 @@ public class FIDTrainer {
 	int maxIterations;
 	double tolerance;
 	
+	public static double EPS = 1e-9;
+	
 	public FIDTrainer(Matrix X, int r) {
 		this.X = X;
 		this.r = r;
@@ -28,25 +28,19 @@ public class FIDTrainer {
 		H = new Matrix(r, m);
 		
 		// Initialize W and H with random values
-		System.out.println("Initial W");
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < r; j++) {
 				W.set(i, j, Math.random());
-				System.out.print(W.get(i, j) + " ");
 			}
-			System.out.print("\n\n");
 		}
-		System.out.println("Initial H");
 		for (int i = 0; i < r; i++) {
 			for (int j = 0; j < m; j++) {
 				H.set(i, j, Math.random());
-				System.out.print(H.get(i, j) + " ");
 			}
-			System.out.print("\n\n");
 		}
 		
 		maxIterations = 100;
-		tolerance = 1.0;
+		tolerance = 0.01;
 	}
 	
 	public FIDTrainer(Matrix X, int r, int maxIterations) {
@@ -62,6 +56,8 @@ public class FIDTrainer {
 	void factorizeNMF() throws IllegalArgumentException {
 		int iterations = 0;
 		
+//		Matrix H0 = H.copy();
+//		Matrix W0 = W.copy();
 		while (iterations < maxIterations) {
 			// Calculate W(transpose) * W;
 			Matrix WTW = new Matrix(r, r);
@@ -92,7 +88,7 @@ public class FIDTrainer {
 						H.set(i, j, H.get(i, j) * numerator / denominator);
 					}
 					else {
-						H.set(i, j, 0.0);
+						H.set(i, j, X.get(i, j));
 					}
 				}
 			}		
@@ -130,14 +126,78 @@ public class FIDTrainer {
 					}
 				}
 			}
-			
+	
 			// Check for convergence
-			System.out.println("dist = " + euclideanDistanceSquare(X, W.times(H)));
 			if (euclideanDistanceSquare(X, W.times(H)) < tolerance) {
 				break;
 			}
 			iterations++;
 		}
+	}
+	
+	void updateMatrixH() {
+		// Compute X / (W*H) and return the result in _TempSizeX
+        Matrix WH = W.times(H);
+        Matrix X_WH = new Matrix(n, m);
+        Matrix ones = new Matrix(n, m);
+        for (int i = 0; i < n; i++) {
+        	for (int j = 0; j < m; j++) {
+        		X_WH.set(i, j, (X.get(i, j) + EPS) / (WH.get(i, j) + EPS));
+        		ones.set(i, j, 1.0);
+        	}
+        } 
+        // _TempSizeWTran <- W^T
+        Matrix WT = W.transpose();
+        // _TempSizeH <- W^T * (X / (W * H))        
+        Matrix num = WT.times(X_WH);
+        // _TempSizeH2 <- W^T * _OnesSizeX
+        Matrix den = WT.times(ones);
+        
+        // _TempSizeH <- _TempSizeH / _TempSizeH2
+        Matrix prod = new Matrix(r, m);
+        for (int i = 0; i < r; i++) {
+        	for (int j = 0; j < m; j++) {
+        		prod.set(i, j, (num.get(i, j) + EPS) / (den.get(i, j) + EPS));
+        	}
+        }
+        // _H <- _H * _TempSizeH
+        for (int i = 0; i < r; i++) {
+        	for (int j = 0; j < m; j++) {
+        		H.set(i, j, H.get(i, j) * prod.get(i, j));
+        	}
+        }        
+	}
+	
+	void updateMatrixW() {
+		// Compute X / (W*H) and return the result in _TempSizeX
+        Matrix WH = W.times(H);
+        Matrix X_WH = new Matrix(n, m);
+        Matrix ones = new Matrix(n, m);
+        for (int i = 0; i < n; i++) {
+        	for (int j = 0; j < m; j++) {
+        		X_WH.set(i, j, (X.get(i, j) + EPS) / (WH.get(i, j) + EPS));
+        		ones.set(i, j, 1.0);
+        	}
+        }
+        // _TempSizeHTran <- H^T
+        Matrix HT = H.transpose();
+        // _TempSizeW <- _TempSizeX * H^T
+        Matrix num = X_WH.times(HT);
+        // _TempSizeW2 <- _OnesSizeX * H^T
+        Matrix den = ones.times(HT);
+        // _TempSizeW <- _TempSizeW / _TempSizeW2
+        Matrix prod = new Matrix(n, r);
+        for (int i = 0; i < n; i++) {
+        	for (int j = 0; j < r; j++) {
+        		prod.set(i, j, (num.get(i, j) + EPS) / (den.get(i, j) + EPS));
+        	}
+        }
+        // _W <- _W * _TempSizeW
+        for (int i = 0; i < n; i++) {
+        	for (int j = 0; j < r; j++) {
+        		W.set(i, j, W.get(i, j) * prod.get(i, j));
+        	}
+        }
 	}
 	
 	double euclideanDistanceSquare(Matrix A, Matrix B) throws IllegalArgumentException {
